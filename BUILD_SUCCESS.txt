@@ -1,0 +1,24 @@
+🎉 สร้าง GUI และ Portable Package เสร็จสิ้น!
+
+📦 ไฟล์ที่ได้:
+├── dist/VideoProcessor_Portable.zip (16.52 MB) - ไฟล์ ZIP พร้อมแจกจ่าย
+├── dist/VideoProcessor_Portable/ - โฟลเดอร์ portable ครบชุด
+├── dist/VideoProcessor.exe (9.94 MB) - GUI executable เดี่ยว  
+└── dist/VideoProcessorCLI.exe (6.97 MB) - CLI executable เดี่ยว
+
+🚀 วิธีใช้งาน:
+1. ส่งไฟล์ VideoProcessor_Portable.zip ให้ผู้อื่น
+2. ให้แตกไฟล์ ZIP
+3. ดับเบิลคลิก Start_GUI.bat เพื่อใช้งาน GUI
+4. หรือ Start_CLI.bat เพื่อใช้งาน Command Line
+
+✅ ข้อดี:
+- ไม่ต้องติดตั้ง Python
+- รันได้ทันทีบน Windows
+- มีคู่มือครบถ้วน
+- พกพาได้ง่าย
+
+⚠️ ต้องมี FFmpeg ติดตั้งในระบบ
+📥 ดาวน์โหลดได้จาก: https://ffmpeg.org/download.html
+
+🎯 พร้อมใช้งาน! 🎯
