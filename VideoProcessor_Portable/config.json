@@ -1,0 +1,41 @@
+{
+  "default_settings": {
+    "segment_duration": 300,
+    "max_size_mb": 25,
+    "quality_preset": "medium",
+    "input_folder": "input_vdo",
+    "output_folder": "output_vdo"
+  },
+  "ffmpeg_settings": {
+    "video_codec": "libx264",
+    "audio_codec": "aac",
+    "audio_bitrate": "128k",
+    "pixel_format": "yuv420p"
+  },
+  "supported_formats": [
+    "mp4", "avi", "mov", "mkv", 
+    "wmv", "flv", "webm", "m4v"
+  ],
+  "quality_presets": {
+    "ultrafast": {
+      "description": "เร็วที่สุด, คุณภาพต่ำ",
+      "recommended_for": "การทดสอบ, ไฟล์ขนาดใหญ่"
+    },
+    "fast": {
+      "description": "เร็ว",
+      "recommended_for": "การใช้งานทั่วไป"
+    },
+    "medium": {
+      "description": "ปกติ (แนะนำ)",
+      "recommended_for": "สมดุลระหว่างคุณภาพและเวลา"
+    },
+    "slow": {
+      "description": "ช้า, คุณภาพดี",
+      "recommended_for": "ไฟล์สำคัญ, คุณภาพสูง"
+    },
+    "veryslow": {
+      "description": "ช้าที่สุด, คุณภาพดีที่สุด",
+      "recommended_for": "การผลิตระดับมืออาชีพ"
+    }
+  }
+}

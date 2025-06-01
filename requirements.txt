@@ -1,0 +1,11 @@
+# ไลบรารีสำหรับการประมวลผลวิดีโอ
+ffmpeg-python>=0.2.0
+
+# ไลบรารีสำหรับ progress bar และการแสดงผล
+tqdm>=4.66.0
+colorama>=0.4.6
+
+# ไลบรารีมาตรฐานที่มาพร้อม Python (ไม่ต้องติดตั้ง)
+# tkinter - สำหรับ GUI (มาพร้อม Python)
+# os, subprocess, glob, math, json, argparse, pathlib, time, typing
+# threading, webbrowser
