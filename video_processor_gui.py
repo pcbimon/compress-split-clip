@@ -164,14 +164,17 @@ class VideoProcessorGUI:
         
         ttk.Button(button_frame, text="📁 เปิดโฟลเดอร์ output", 
                   command=self.open_output_folder).pack(side="right")
-        
-        # Progress bar
+          # Progress bar
         progress_frame = ttk.Frame(self.root)
         progress_frame.pack(fill="x", padx=10, pady=5)
         
         ttk.Label(progress_frame, text="ความคืบหน้า:").pack(anchor="w")
-        self.progress = ttk.Progressbar(progress_frame, mode="indeterminate")
+        self.progress = ttk.Progressbar(progress_frame, mode="determinate")
         self.progress.pack(fill="x", pady=2)
+        
+        # Progress label
+        self.progress_label = ttk.Label(progress_frame, text="พร้อมใช้งาน")
+        self.progress_label.pack(anchor="w", pady=2)
         
         # พื้นที่แสดงผล (Log)
         log_frame = ttk.LabelFrame(self.root, text="ผลการประมวลผล", padding=5)
@@ -316,7 +319,6 @@ class VideoProcessorGUI:
         if self.duration_value.get() <= 0:
             messagebox.showerror("ข้อผิดพลาด", "ระยะเวลาต้องมากกว่า 0")
             return False
-        
         return True
     
     def start_processing(self):
@@ -327,7 +329,10 @@ class VideoProcessorGUI:
         self.is_processing = True
         self.process_button.config(state="disabled")
         self.stop_button.config(state="normal")
-        self.progress.start()
+        
+        # Reset progress bar
+        self.progress["value"] = 0
+        self.progress_label.config(text="กำลังเตรียมข้อมูล...")
         
         # ล้าง log
         self.log_text.delete("1.0", "end")
@@ -362,11 +367,17 @@ class VideoProcessorGUI:
             total_duration = video_info['duration']
             
             if total_duration <= 0:
-                self.log("❌ ไม่สามารถอ่านข้อมูลวิดีโอได้")
+                self.log("❌ ไม่สามารถอ่านข้อมูลวิดีโอได้")                
                 return
             
             # คำนวณจำนวนส่วน
             num_segments = math.ceil(total_duration / segment_duration)
+            
+            # ตั้งค่า progress bar
+            self.progress["maximum"] = num_segments
+            self.progress["value"] = 0
+            self.root.after(0, lambda: self.progress_label.config(
+                text=f"0/{num_segments} ส่วน"))
             
             self.log(f"📊 ข้อมูลวิดีโอ:")
             self.log(f"   - ความยาว: {self.format_time(total_duration)}")
@@ -384,7 +395,7 @@ class VideoProcessorGUI:
                 start_time = i * segment_duration
                 actual_duration = min(segment_duration, total_duration - start_time)
                 
-                output_filename = f"{video_name}_part{i+1:03d}.mp4"
+                output_filename = f"{video_name}_part{i+1:03d}.mp4"                
                 output_path = os.path.join(self.output_folder, output_filename)
                 
                 self.log(f"🔄 ส่วนที่ {i+1}/{num_segments}: {output_filename}")
@@ -395,6 +406,10 @@ class VideoProcessorGUI:
                     self.log(f"   ✅ สำเร็จ")
                 else:
                     self.log(f"   ❌ ล้มเหลว")
+                
+                # อัปเดต progress bar
+                completed = i + 1
+                self.root.after(0, lambda c=completed, t=num_segments: self.update_progress(c, t))
             
             self.log("-" * 50)
             self.log(f"🏁 เสร็จสิ้น: {success_count}/{num_segments} ส่วน")
@@ -410,6 +425,12 @@ class VideoProcessorGUI:
         finally:
             # คืนค่า UI
             self.root.after(0, self.processing_finished)
+    
+    def update_progress(self, completed, total):
+        """อัปเดตความคืบหน้า"""
+        self.progress["value"] = completed
+        percentage = (completed / total) * 100
+        self.progress_label.config(text=f"{completed}/{total} ส่วน ({percentage:.1f}%)")
     
     def get_video_info(self, video_path):
         """หาข้อมูลวิดีโอ"""
@@ -486,7 +507,6 @@ class VideoProcessorGUI:
         except Exception as e:
             self.log(f"   ❌ Error: {e}")
             return False
-    
     def format_time(self, seconds):
         """แปลงวินาทีเป็น HH:MM:SS"""
         hours = int(seconds // 3600)
@@ -497,7 +517,8 @@ class VideoProcessorGUI:
     def processing_finished(self):
         """เมื่อประมวลผลเสร็จสิ้น"""
         self.is_processing = False
-        self.progress.stop()
+        self.progress["value"] = 0
+        self.progress_label.config(text="พร้อมใช้งาน")
         self.process_button.config(state="normal")
         self.stop_button.config(state="disabled")
     
