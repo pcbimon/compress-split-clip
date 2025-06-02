@@ -1,12 +1,13 @@
 import os
-import subprocess
 import glob
 import math
+import time
 import json
 import argparse
+import subprocess
+import ffmpeg
 from pathlib import Path
 from typing import List, Tuple
-import time
 
 class VideoProcessor:
     def __init__(self, input_folder: str = "input_vdo", output_folder: str = "output_vdo"):
@@ -30,8 +31,8 @@ class VideoProcessor:
     def _check_ffmpeg(self):
         """ตรวจสอบว่ามี FFmpeg ติดตั้งในระบบหรือไม่"""
         try:
+            # ใช้ ffmpeg-python ในการตรวจสอบ
             subprocess.run(['ffmpeg', '-version'], capture_output=True, check=True)
-            subprocess.run(['ffprobe', '-version'], capture_output=True, check=True)
             print("✓ FFmpeg พร้อมใช้งาน")
         except (subprocess.CalledProcessError, FileNotFoundError):
             print("❌ ข้อผิดพลาด: ไม่พบ FFmpeg หรือ FFprobe")
@@ -50,21 +51,13 @@ class VideoProcessor:
     def get_video_info(self, video_path: str) -> dict:
         """หาข้อมูลของวิดีโอ (ความยาว, bitrate, ขนาดไฟล์)"""
         try:
-            # หาความยาวของวิดีโอ
-            duration_cmd = [
-                'ffprobe', '-v', 'quiet', '-show_entries', 'format=duration',
-                '-of', 'default=noprint_wrappers=1:nokey=1', video_path
-            ]
-            duration_result = subprocess.run(duration_cmd, capture_output=True, text=True, check=True)
-            duration = float(duration_result.stdout.strip()) if duration_result.stdout.strip() else 0
+            # ใช้ ffmpeg-python ในการหาข้อมูลวิดีโอ
+            probe = ffmpeg.probe(video_path)
             
-            # หา bitrate
-            bitrate_cmd = [
-                'ffprobe', '-v', 'quiet', '-show_entries', 'format=bit_rate',
-                '-of', 'default=noprint_wrappers=1:nokey=1', video_path
-            ]
-            bitrate_result = subprocess.run(bitrate_cmd, capture_output=True, text=True)
-            bitrate = int(bitrate_result.stdout.strip()) if bitrate_result.stdout.strip() else 0
+            # หาข้อมูล format
+            format_info = probe['format']
+            duration = float(format_info.get('duration', 0))
+            bitrate = int(format_info.get('bit_rate', 0))
             
             # หาขนาดไฟล์
             file_size = os.path.getsize(video_path)
@@ -102,7 +95,7 @@ class VideoProcessor:
     def split_and_compress_video(self, video_path: str, segment_duration: int, max_size_mb: float, 
                                quality_preset: str = "medium") -> bool:
         """
-        ตัดและบีบอัดวิดีโอ
+        ตัดและบีบอัดวิดีโอด้วย ffmpeg-python
         
         Args:
             video_path: เส้นทางไฟล์วิดีโอ
@@ -144,27 +137,30 @@ class VideoProcessor:
             print(f"   ⏱️  เวลา: {self.format_time(start_time)} - {self.format_time(start_time + actual_duration)}")
             print(f"   📊 Target Bitrate: {target_bitrate//1000}k")
             
-            # คำสั่ง ffmpeg
-            cmd = [
-                'ffmpeg', '-y',  # -y เพื่อเขียนทับไฟล์ที่มีอยู่
-                '-i', video_path,
-                '-ss', str(start_time),
-                '-t', str(actual_duration),
-                '-c:v', 'libx264',  # ใช้ codec H.264
-                '-b:v', f"{target_bitrate}",  # กำหนด video bitrate
-                '-maxrate', f"{target_bitrate}",  # bitrate สูงสุด
-                '-bufsize', f"{target_bitrate * 2}",  # buffer size
-                '-c:a', 'aac',  # ใช้ AAC สำหรับเสียง
-                '-b:a', '128k',  # audio bitrate 128k
-                '-preset', quality_preset,  # ความเร็วในการเข้ารหัส
-                '-movflags', '+faststart',  # เพื่อให้เล่นได้เร็วขึ้นบนเว็บ
-                output_path
-            ]
-            
             try:
-                # แสดงความคืบหน้า
+                # ใช้ ffmpeg-python แทน subprocess
                 start_time_process = time.time()
-                result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+                
+                # สร้าง ffmpeg pipeline
+                stream = ffmpeg.input(video_path, ss=start_time, t=actual_duration)
+                stream = ffmpeg.output(
+                    stream,
+                    output_path,
+                    vcodec='libx264',
+                    **{
+                        'b:v': f"{target_bitrate}",
+                        'maxrate': f"{target_bitrate}",
+                        'bufsize': f"{target_bitrate * 2}",
+                        'c:a': 'aac',
+                        'b:a': '128k',
+                        'preset': quality_preset,
+                        'movflags': '+faststart'
+                    }
+                )
+                
+                # รัน ffmpeg แบบเงียบ
+                ffmpeg.run(stream, overwrite_output=True, quiet=True)
+                
                 process_time = time.time() - start_time_process
                 
                 # ตรวจสอบขนาดไฟล์ที่ได้
@@ -183,10 +179,12 @@ class VideoProcessor:
                 else:
                     print(f"   ❌ ไม่พบไฟล์ output")
                     
-            except subprocess.CalledProcessError as e:
-                print(f"   ❌ ข้อผิดพลาด: ไม่สามารถประมวลผลส่วนที่ {i+1}")
+            except ffmpeg.Error as e:
+                print(f"   ❌ ข้อผิดพลาด FFmpeg: ไม่สามารถประมวลผลส่วนที่ {i+1}")
                 error_output = e.stderr.decode() if e.stderr else str(e)
                 print(f"   📝 รายละเอียด: {error_output[:200]}...")
+            except Exception as e:
+                print(f"   ❌ ข้อผิดพลาดทั่วไป: {str(e)}")
             
             print()
         
@@ -212,7 +210,7 @@ class VideoProcessor:
             print(f"❌ ไม่พบไฟล์วิดีโอในโฟลเดอร์ {self.input_folder}")
             return {'processed': 0, 'failed': 0, 'total': 0}
         
-        print("🎬 โปรแกรมตัดและบีบอัดวิดีโอ")
+        print("🎬 โปรแกรมตัดและบีบอัดวิดีโอ (ใช้ ffmpeg-python)")
         print("=" * 60)
         print(f"📁 โฟลเดอร์ input: {self.input_folder}")
         print(f"📁 โฟลเดอร์ output: {self.output_folder}")
@@ -232,8 +230,10 @@ class VideoProcessor:
             
             if self.split_and_compress_video(video_file, segment_duration, max_size_mb, quality_preset):
                 processed_count += 1
+                print(f"✅ ประมวลผลไฟล์ {os.path.basename(video_file)} สำเร็จ")
             else:
                 failed_count += 1
+                print(f"❌ ประมวลผลไฟล์ {os.path.basename(video_file)} ล้มเหลว")
         
         total_time = time.time() - total_start_time
         
@@ -254,7 +254,7 @@ class VideoProcessor:
         }
 
 def main():
-    parser = argparse.ArgumentParser(description='โปรแกรมตัดและบีบอัดวิดีโอด้วย FFmpeg')
+    parser = argparse.ArgumentParser(description='โปรแกรมตัดและบีบอัดวิดีโอด้วย FFmpeg-Python')
     parser.add_argument('-d', '--duration', type=int, default=300,
                        help='ระยะเวลาการตัดในวินาที (default: 300)')
     parser.add_argument('-s', '--size', type=float, default=25,

@@ -5,6 +5,7 @@ import os
 import subprocess
 import math
 import time
+import ffmpeg
 from pathlib import Path
 import json
 from typing import Optional
@@ -13,7 +14,7 @@ import webbrowser
 class VideoProcessorGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("🎬 โปรแกรมตัดและบีบอัดวิดีโอ")
+        self.root.title("🎬 โปรแกรมตัดและบีบอัดวิดีโอ (FFmpeg-Python)")
         self.root.geometry("700x650")
         self.root.resizable(True, True)
         
@@ -25,6 +26,7 @@ class VideoProcessorGUI:
         self.duration_unit = tk.StringVar(value="วินาที")
         self.quality_preset = tk.StringVar(value="medium")
         self.is_processing = False
+        self.ffmpeg_available = False
         
         # สร้าง output folder
         Path(self.output_folder).mkdir(exist_ok=True)
@@ -38,7 +40,7 @@ class VideoProcessorGUI:
         title_frame = ttk.Frame(self.root)
         title_frame.pack(fill="x", padx=10, pady=5)
         
-        title_label = ttk.Label(title_frame, text="🎬 โปรแกรมตัดและบีบอัดวิดีโอ", 
+        title_label = ttk.Label(title_frame, text="🎬 โปรแกรมตัดและบีบอัดวิดีโอ (FFmpeg-Python)", 
                                font=("Arial", 16, "bold"))
         title_label.pack()
         
@@ -164,7 +166,8 @@ class VideoProcessorGUI:
         
         ttk.Button(button_frame, text="📁 เปิดโฟลเดอร์ output", 
                   command=self.open_output_folder).pack(side="right")
-          # Progress bar
+        
+        # Progress bar
         progress_frame = ttk.Frame(self.root)
         progress_frame.pack(fill="x", padx=10, pady=5)
         
@@ -214,8 +217,6 @@ class VideoProcessorGUI:
         if filename:
             self.source_file.set(filename)
             self.log(f"เลือกไฟล์: {os.path.basename(filename)}")
-            
-            # แสดงข้อมูลไฟล์
             self.show_file_info(filename)
     
     def show_file_info(self, filename):
@@ -225,23 +226,21 @@ class VideoProcessorGUI:
             self.log(f"ขนาดไฟล์: {file_size:.1f} MB")
             
             # ถ้ามี FFmpeg ให้แสดงข้อมูลเพิ่มเติม
-            if hasattr(self, 'ffmpeg_available') and self.ffmpeg_available:
+            if self.ffmpeg_available:
                 self.get_video_duration(filename)
                 
         except Exception as e:
             self.log(f"ไม่สามารถอ่านข้อมูลไฟล์ได้: {e}")
     
     def get_video_duration(self, filename):
-        """หาความยาวของวิดีโอ"""
+        """หาความยาวของวิดีโอด้วย ffmpeg-python"""
         try:
-            cmd = [
-                'ffprobe', '-v', 'quiet', '-show_entries', 'format=duration',
-                '-of', 'default=noprint_wrappers=1:nokey=1', filename
-            ]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            # ใช้ ffmpeg-python แทน subprocess
+            probe = ffmpeg.probe(filename)
+            format_info = probe['format']
+            duration = float(format_info.get('duration', 0))
             
-            if result.returncode == 0 and result.stdout.strip():
-                duration = float(result.stdout.strip())
+            if duration > 0:
                 minutes = int(duration // 60)
                 seconds = int(duration % 60)
                 self.log(f"ความยาววิดีโอ: {minutes:02d}:{seconds:02d} นาที")
@@ -250,6 +249,8 @@ class VideoProcessorGUI:
                 segment_duration = self.get_duration_in_seconds()
                 num_segments = math.ceil(duration / segment_duration)
                 self.log(f"จะแบ่งเป็น: {num_segments} ส่วน")
+            else:
+                self.log("ไม่สามารถอ่านความยาววิดีโอได้")
                 
         except Exception as e:
             self.log(f"ไม่สามารถอ่านความยาววิดีโอได้: {e}")
@@ -433,16 +434,14 @@ class VideoProcessorGUI:
         self.progress_label.config(text=f"{completed}/{total} ส่วน ({percentage:.1f}%)")
     
     def get_video_info(self, video_path):
-        """หาข้อมูลวิดีโอ"""
+        """หาข้อมูลวิดีโอด้วย ffmpeg-python"""
         try:
-            # หาความยาว
-            duration_cmd = [
-                'ffprobe', '-v', 'quiet', '-show_entries', 'format=duration',
-                '-of', 'default=noprint_wrappers=1:nokey=1', video_path
-            ]
-            duration_result = subprocess.run(duration_cmd, capture_output=True, 
-                                           text=True, check=True, timeout=30)
-            duration = float(duration_result.stdout.strip()) if duration_result.stdout.strip() else 0
+            # ใช้ ffmpeg-python ในการหาข้อมูลวิดีโอ
+            probe = ffmpeg.probe(video_path)
+            
+            # หาข้อมูล format
+            format_info = probe['format']
+            duration = float(format_info.get('duration', 0))
             
             # ขนาดไฟล์
             file_size = os.path.getsize(video_path)
@@ -460,35 +459,36 @@ class VideoProcessorGUI:
     def calculate_target_bitrate(self, duration_seconds, max_size_mb):
         """คำนวณ bitrate เป้าหมาย"""
         if duration_seconds <= 0:
-            return 1000000
+            return 1000000  # default 1Mbps
         
         max_size_bits = max_size_mb * 8 * 1024 * 1024
         target_bitrate = int(max_size_bits / duration_seconds)
         return max(int(target_bitrate * 0.75), 100000)  # ลด 25% สำหรับความปลอดภัย
     
     def process_segment(self, video_path, output_path, start_time, duration, max_size_mb, quality_preset):
-        """ประมวลผลส่วนหนึ่งของวิดีโอ"""
+        """ประมวลผลส่วนหนึ่งของวิดีโอด้วย ffmpeg-python"""
         try:
             target_bitrate = self.calculate_target_bitrate(duration, max_size_mb)
             
-            cmd = [
-                'ffmpeg', '-y',
-                '-i', video_path,
-                '-ss', str(start_time),
-                '-t', str(duration),
-                '-c:v', 'libx264',
-                '-b:v', f"{target_bitrate}",
-                '-maxrate', f"{target_bitrate}",
-                '-bufsize', f"{target_bitrate * 2}",
-                '-c:a', 'aac',
-                '-b:a', '128k',
-                '-preset', quality_preset,
-                '-movflags', '+faststart',
-                output_path
-            ]
+            # ใช้ ffmpeg-python แทน subprocess
+            stream = ffmpeg.input(video_path, ss=start_time, t=duration)
+            stream = ffmpeg.output(
+                stream,
+                output_path,
+                vcodec='libx264',
+                **{
+                    'b:v': f"{target_bitrate}",
+                    'maxrate': f"{target_bitrate}",
+                    'bufsize': f"{target_bitrate * 2}",
+                    'c:a': 'aac',
+                    'b:a': '128k',
+                    'preset': quality_preset,
+                    'movflags': '+faststart'
+                }
+            )
             
-            result = subprocess.run(cmd, capture_output=True, text=True, 
-                                  check=True, timeout=300)  # timeout 5 นาที
+            # รัน ffmpeg
+            ffmpeg.run(stream, overwrite_output=True, quiet=True)
             
             # ตรวจสอบผลลัพธ์
             if os.path.exists(output_path):
@@ -498,15 +498,13 @@ class VideoProcessorGUI:
             else:
                 return False
                 
-        except subprocess.CalledProcessError as e:
+        except ffmpeg.Error as e:
             self.log(f"   ❌ FFmpeg error: {e}")
-            return False
-        except subprocess.TimeoutExpired:
-            self.log(f"   ❌ Timeout")
             return False
         except Exception as e:
             self.log(f"   ❌ Error: {e}")
             return False
+    
     def format_time(self, seconds):
         """แปลงวินาทีเป็น HH:MM:SS"""
         hours = int(seconds // 3600)
@@ -525,14 +523,12 @@ class VideoProcessorGUI:
     def open_output_folder(self):
         """เปิดโฟลเดอร์ output"""
         try:
-            output_path = os.path.abspath(self.output_folder)
-            if os.path.exists(output_path):
-                os.startfile(output_path)  # Windows
-                self.log(f"📁 เปิดโฟลเดอร์: {output_path}")
-            else:
-                self.log("❌ ไม่พบโฟลเดอร์ output")
+            if os.name == 'nt':  # Windows
+                os.startfile(self.output_folder)
+            elif os.name == 'posix':  # macOS and Linux
+                subprocess.Popen(['open', self.output_folder])
         except Exception as e:
-            self.log(f"❌ ไม่สามารถเปิดโฟลเดอร์ได้: {e}")
+            self.log(f"ไม่สามารถเปิดโฟลเดอร์ได้: {e}")
 
 def main():
     """รันโปรแกรม"""
@@ -542,8 +538,7 @@ def main():
     # ปิดโปรแกรมอย่างปลอดภัย
     def on_closing():
         if app.is_processing:
-            if messagebox.askokcancel("ออกจากโปรแกรม", 
-                                     "กำลังประมวลผลอยู่ ต้องการออกจากโปรแกรมหรือไม่?"):
+            if messagebox.askokcancel("ปิดโปรแกรม", "กำลังประมวลผลอยู่ ต้องการปิดหรือไม่?"):
                 app.is_processing = False
                 root.destroy()
         else:

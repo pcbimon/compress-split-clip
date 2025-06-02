@@ -12,10 +12,13 @@ from pathlib import Path
 def create_portable_package():
     """สร้าง portable package"""
     print("🔨 กำลังสร้าง Portable Package...")
-    
-    # กำหนดโฟลเดอร์
+      # กำหนดโฟลเดอร์
     base_dir = Path(__file__).parent
-    portable_dir = base_dir / "VideoProcessor_Portable"
+    dist_dir = base_dir / "dist"
+    portable_dir = dist_dir / "VideoProcessor_Portable"
+    
+    # สร้างโฟลเดอร์ dist ถ้ายังไม่มี
+    dist_dir.mkdir(exist_ok=True)
     
     # ลบโฟลเดอร์เก่าถ้ามี
     if portable_dir.exists():
@@ -27,12 +30,20 @@ def create_portable_package():
     # สร้างโครงสร้างโฟลเดอร์
     (portable_dir / "input_vdo").mkdir()
     (portable_dir / "output_vdo").mkdir()
-    (portable_dir / "docs").mkdir()
-    
-    # คัดลอกไฟล์ executable
+    (portable_dir / "docs").mkdir()    # คัดลอกไฟล์ executable
     print("📦 คัดลอก executable files...")
-    dist_dir = base_dir / "dist"
-    if (dist_dir / "VideoProcessor_GUI.exe").exists():
+    
+    # ตรวจสอบว่ามีไฟล์ executable หรือไม่
+    if not (dist_dir / "VideoProcessor.exe").exists() and not (dist_dir / "VideoProcessor_GUI.exe").exists():
+        print("❌ ไม่พบไฟล์ executable ใน dist/")
+        print("💡 กรุณารัน build script ก่อนเพื่อสร้าง executable files")
+        return
+    
+    # คัดลอกและเปลี่ยนชื่อ GUI executable
+    if (dist_dir / "VideoProcessor.exe").exists():
+        shutil.copy2(dist_dir / "VideoProcessor.exe", portable_dir / "VideoProcessor_GUI.exe")
+        print("✅ VideoProcessor_GUI.exe")
+    elif (dist_dir / "VideoProcessor_GUI.exe").exists():
         shutil.copy2(dist_dir / "VideoProcessor_GUI.exe", portable_dir)
         print("✅ VideoProcessor_GUI.exe")
     
@@ -256,7 +267,8 @@ def create_zip_package(portable_dir):
     """สร้างไฟล์ ZIP package"""
     print("📦 สร้างไฟล์ ZIP...")
     
-    zip_path = f"{portable_dir}.zip"
+    # สร้าง ZIP ไว้ในโฟลเดอร์ dist
+    zip_path = portable_dir.parent / f"{portable_dir.name}.zip"
     
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
         for root, dirs, files in os.walk(portable_dir):
