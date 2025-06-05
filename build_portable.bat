@@ -11,8 +11,8 @@ echo.
 cd /d "%~dp0"
 
 echo 🔧 เปิดใช้งาน Virtual Environment...
-if exist "venv\Scripts\activate.bat" (
-    call venv\Scripts\activate.bat
+if exist ".venv\Scripts\activate.bat" (
+    call .venv\Scripts\activate.bat
 ) else (
     echo ❌ ไม่พบ Virtual Environment
     echo กรุณารัน setup ก่อน
