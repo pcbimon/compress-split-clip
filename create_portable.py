@@ -97,17 +97,94 @@ start "" VideoProcessor_GUI.exe
     
     with open(portable_dir / "Start_GUI.bat", "w", encoding="utf-8") as f:
         f.write(gui_launcher)
-    
-    # CLI Launcher
+      # CLI Launcher
     cli_launcher = '''@echo off
 chcp 65001 > nul
 title Video Processor CLI
-echo 🎬 Video Processor CLI
+
+REM ===============================================
+REM ตั้งค่าเริ่มต้น - แก้ไขค่าเหล่านี้ได้ตามต้องการ
+REM ===============================================
+SET Duration=60
+SET LimitSize=25
+
+REM Duration = ระยะเวลาการตัดแต่ละส่วน (วินาที)
+REM LimitSize = ขนาดไฟล์สูงสุดแต่ละส่วน (MB)
+
+echo ═══════════════════════════════════════════════
+echo   🎬 Video Processor CLI - Quick Launch
+echo ═══════════════════════════════════════════════
 echo.
-echo กำลังเปิด Command Line Interface...
-echo ใช้ --help เพื่อดูวิธีการใช้งาน
+echo ค่าเริ่มต้นที่ตั้งไว้:
+echo   📏 Duration: %Duration% วินาที
+echo   💾 Limit Size: %LimitSize% MB
 echo.
-VideoProcessorCLI.exe %*
+echo คำสั่งที่ใช้:
+echo   VideoProcessorCLI.exe -d %Duration% -s %LimitSize%
+echo.
+echo ═══════════════════════════════════════════════
+echo เลือกการทำงาน:
+echo [1] ใช้ค่าเริ่มต้น (กด Enter)
+echo [2] ใส่พารามิเตอร์เอง
+echo [0] ออกจากโปรแกรม
+echo ═══════════════════════════════════════════════
+set /p choice="กรุณาเลือก (0-2) หรือกด Enter: "
+
+if "%choice%"=="" set choice=1
+if "%choice%"=="0" goto end
+if "%choice%"=="1" goto quick_start
+if "%choice%"=="2" goto custom_params
+
+echo ❌ กรุณาเลือก 0, 1, 2 หรือกด Enter
+pause
+goto end
+
+:quick_start
+echo.
+echo 🚀 เริ่มต้นด้วยค่าเริ่มต้น...
+echo    Duration: %Duration% วินาที
+echo    Limit Size: %LimitSize% MB
+echo.
+echo 💡 ใช้คำสั่ง: VideoProcessorCLI.exe -d %Duration% -s %LimitSize%
+echo    หรือ: VideoProcessorCLI.exe --help เพื่อดูวิธีใช้งานทั้งหมด
+echo.
+VideoProcessorCLI.exe -d %Duration% -s %LimitSize%
+goto end
+
+:custom_params
+echo.
+echo 🛠️  โหมดกำหนดพารามิเตอร์เอง
+echo ═══════════════════════════════════════════════
+echo.
+echo กรุณากำหนดค่าที่ต้องการ:
+echo.
+
+REM รับค่า Duration
+set /p custom_duration="📏 ระยะเวลาการตัดแต่ละส่วน (วินาที) [ค่าเริ่มต้น: %Duration%]: "
+if "%custom_duration%"=="" set custom_duration=%Duration%
+
+REM รับค่า LimitSize  
+set /p custom_limitsize="💾 ขนาดไฟล์สูงสุดแต่ละส่วน (MB) [ค่าเริ่มต้น: %LimitSize%]: "
+if "%custom_limitsize%"=="" set custom_limitsize=%LimitSize%
+
+echo.
+echo ✅ ค่าที่เลือก:
+echo    📏 Duration: %custom_duration% วินาที
+echo    💾 Limit Size: %custom_limitsize% MB
+echo.
+echo 💡 คำสั่งที่จะใช้: VideoProcessorCLI.exe -d %custom_duration% -s %custom_limitsize%
+echo.
+set /p confirm="❓ ต้องการดำเนินการต่อหรือไม่? (Y/n): "
+if /i "%confirm%"=="n" goto menu
+if /i "%confirm%"=="no" goto menu
+
+echo.
+echo 🚀 เริ่มประมวลผลด้วยค่าที่กำหนด...
+VideoProcessorCLI.exe -d %custom_duration% -s %custom_limitsize%
+goto end
+
+:end
+echo.
 pause
 '''
     
